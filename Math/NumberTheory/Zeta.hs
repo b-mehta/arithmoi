@@ -8,12 +8,13 @@
 --
 -- Riemann zeta-function.
 
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ScopedTypeVariables, ParallelListComp #-}
 
 module Math.NumberTheory.Zeta
   ( zetas
   , zetasEven
   , approximateValue
+  , chudnovsky
   ) where
 
 import Data.ExactPi
@@ -113,3 +114,12 @@ zetas eps = e : o : scanl1 f (intertwine es os)
     -- Cap-and-floor to improve numerical stability:
     -- 0 < zeta(n + 1) - 1 < (zeta(n) - 1) / 2
     f x y = 1 `max` (y `min` (1 + (x - 1) / 2))
+
+chudnovsky :: [Rational]
+chudnovsky = [426880^2 * 10005 / s^2 | s <- partials]
+  where lk = iterate (+545140134) 13591409
+        xk = iterate (*(-262537412640768000)) 1
+        kk = iterate (+12) 6
+        mk = 1: [m * ((k^3 - 16*k) % (n+1)^3) | m <- mk | k <- kk | n <- [0..]]
+        values = [m * l / x | m <- mk | l <- lk | x <- xk]
+        partials = scanl1 (+) values
