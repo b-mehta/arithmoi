@@ -115,6 +115,9 @@ zetas eps = e : o : scanl1 f (intertwine es os)
     -- 0 < zeta(n + 1) - 1 < (zeta(n) - 1) / 2
     f x y = 1 `max` (y `min` (1 + (x - 1) / 2))
 
+-- | Infinite sequence of rational approximations to pi^2, using Chudnovsky's algorithm.
+-- The first approximation is within 10^-12 of the true value while the second has the same
+-- Double value as the true value.
 chudnovsky :: [Rational]
 chudnovsky = [426880^2 * 10005 / s^2 | s <- partials]
   where lk = iterate (+545140134) 13591409
