@@ -15,27 +15,32 @@ module Math.NumberTheory.Zeta
   , zetasEven
   , approximateValue
   , chudnovsky
+  , ExactPiSq(Exact)
+  , getRationalLimit
   ) where
 
-import Data.ExactPi
 import Data.Ratio
 
 import Math.NumberTheory.Recurrencies (bernoulli, factorial)
 
+-- | Represents a rational multiple of an even integer power of pi.
+data ExactPiSq = Exact Integer Rational -- ^ @'Exact' z q@ = q * pi^(2*z).
+
+instance Show ExactPiSq where
+  show (Exact z q) | z == 0 = "Exactly " ++ show q
+                   | z == 1 = "Exactly pi^2 * " ++ show q
+                   | otherwise = "Exactly pi^" ++ show (2*z) ++ " * " ++ show q
+
 -- | Infinite sequence of exact values of Riemann zeta-function at even arguments, starting with @ζ(0)@.
--- Note that due to numerical errors convertation to 'Double' may return values below 1:
---
--- >>> approximateValue (zetasEven !! 25) :: Double
--- 0.9999999999999996
 --
 -- Use your favorite type for long-precision arithmetic. For instance, 'Data.Number.Fixed.Fixed' works fine:
 --
 -- >>> import Data.Number.Fixed
 -- >>> approximateValue (zetasEven !! 25) :: Fixed Prec50
--- 1.00000000000000088817842111574532859293035196051773
+-- 1.00000000000000088817842109308159030960913863913863
 --
-zetasEven :: [ExactPi]
-zetasEven = zipWith Exact [0, 2 ..] $ zipWith (*) (skipOdds bernoulli) cs
+zetasEven :: [ExactPiSq]
+zetasEven = zipWith Exact [0, 1 ..] $ zipWith (*) (skipOdds bernoulli) cs
   where
     cs = (- 1 % 2) : zipWith (\i f -> i * (-4) / fromInteger (2 * f * (2 * f - 1))) cs [1..]
 
@@ -43,7 +48,7 @@ skipOdds :: [a] -> [a]
 skipOdds (x : _ : xs) = x : skipOdds xs
 skipOdds xs = xs
 
-zetasEven' :: Floating a => [a]
+zetasEven' :: (Eq a, Fractional a) => [a]
 zetasEven' = map approximateValue zetasEven
 
 zetasOdd :: forall a. (Floating a, Ord a) => a -> [a]
@@ -126,3 +131,15 @@ chudnovsky = [426880^2 * 10005 / s^2 | s <- partials]
         mk = 1: [m * ((k^3 - 16*k) % (n+1)^3) | m <- mk | k <- kk | n <- [0..]]
         values = [m * l / x | m <- mk | l <- lk | x <- xk]
         partials = scanl1 (+) values
+
+-- | Given an infinite converging sequence of rationals, find the Fractional they
+-- approximate.
+getRationalLimit :: (Eq a, Fractional a) => [Rational] -> a
+getRationalLimit = go . map fromRational
+  where go (x:y:xs)
+          | x == y    = x
+          | otherwise = go (y:xs)
+        go _ = error "can only find limit of infinite sequence"
+
+approximateValue :: (Eq a, Fractional a) => ExactPiSq -> a
+approximateValue (Exact z q) = getRationalLimit [q * p^z | p <- chudnovsky]
