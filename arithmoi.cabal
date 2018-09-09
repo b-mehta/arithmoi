@@ -118,6 +118,69 @@ library
   if flag(check-bounds)
     cpp-options: -DCheckBounds
 
+executable totality
+  build-depends:
+    base >=4.7 && <5,
+    arithmoi,
+    array >=0.5 && <0.6,
+    containers >=0.5 && <0.7,
+    deepseq,
+    -- exact-pi >=0.4.1.1,
+    -- ghc-prim <0.6,
+    integer-gmp <1.1,
+    integer-logarithms >=1.0,
+    random >=1.0 && <1.2,
+    transformers >=0.4 && <0.6,
+    vector >= 0.12
+  other-modules:
+    GHC.TypeNats.Compat
+    Math.NumberTheory.ArithmeticFunctions
+    Math.NumberTheory.ArithmeticFunctions.Class
+    Math.NumberTheory.ArithmeticFunctions.Moebius
+    Math.NumberTheory.ArithmeticFunctions.Standard
+    Math.NumberTheory.Curves.Montgomery
+    Math.NumberTheory.EisensteinIntegers
+    Math.NumberTheory.GCD
+    Math.NumberTheory.GCD.LowLevel
+    Math.NumberTheory.GaussianIntegers
+    Math.NumberTheory.Moduli
+    Math.NumberTheory.Moduli.Chinese
+    Math.NumberTheory.Moduli.Class
+    Math.NumberTheory.Moduli.DiscreteLogarithm
+    Math.NumberTheory.Moduli.Equations
+    Math.NumberTheory.Moduli.Jacobi
+    Math.NumberTheory.Moduli.PrimitiveRoot
+    Math.NumberTheory.Moduli.Sqrt
+    Math.NumberTheory.Powers
+    Math.NumberTheory.Powers.Cubes
+    Math.NumberTheory.Powers.Fourth
+    Math.NumberTheory.Powers.General
+    Math.NumberTheory.Powers.Modular
+    Math.NumberTheory.Powers.Squares
+    Math.NumberTheory.Powers.Squares.Internal
+    Math.NumberTheory.Prefactored
+    Math.NumberTheory.Primes
+    Math.NumberTheory.Primes.Counting
+    Math.NumberTheory.Primes.Counting.Approximate
+    Math.NumberTheory.Primes.Counting.Impl
+    Math.NumberTheory.Primes.Factorisation
+    Math.NumberTheory.Primes.Factorisation.Montgomery
+    Math.NumberTheory.Primes.Factorisation.TrialDivision
+    Math.NumberTheory.Primes.Sieve
+    Math.NumberTheory.Primes.Sieve.Eratosthenes
+    Math.NumberTheory.Primes.Sieve.Indexing
+    Math.NumberTheory.Primes.Testing
+    Math.NumberTheory.Primes.Testing.Certificates.Internal
+    Math.NumberTheory.Primes.Testing.Certified
+    Math.NumberTheory.Primes.Testing.Probabilistic
+    Math.NumberTheory.Primes.Types
+    Math.NumberTheory.UniqueFactorisation
+    Math.NumberTheory.Unsafe
+    Math.NumberTheory.Utils
+    Math.NumberTheory.Utils.FromIntegral
+  main-is:
+    Math/NumberTheory/Moduli/PollardTotality.hs
+
 test-suite spec
   build-depends:
     base >=4.6 && <5,

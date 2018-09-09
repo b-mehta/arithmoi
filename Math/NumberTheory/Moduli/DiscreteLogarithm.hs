@@ -84,7 +84,7 @@ discreteLogarithmPrimeBSGS p a b = head [i*m + j | (v,i) <- zip giants [0..m-1],
 
 discreteLogarithmPrimePollard :: Integer -> Integer -> Integer -> Natural
 discreteLogarithmPrimePollard p a b =
-  case concatMap runPollard [(0,0),(0,1),(1,1)] of
+  case concatMap runPollard [(0,0)] of
     (t:_)  -> fromInteger t
     []     -> error ("discreteLogarithm: pollard's rho failed, please report this as a bug. inputs " ++ show [p,a,b])
   where
