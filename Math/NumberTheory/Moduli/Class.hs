@@ -16,6 +16,8 @@
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE StandaloneDeriving         #-}
 
+{-# LANGUAGE TypeOperators              #-}
+
 module Math.NumberTheory.Moduli.Class
   ( -- * Known modulo
     Mod
@@ -23,6 +25,7 @@ module Math.NumberTheory.Moduli.Class
   , getNatVal
   , getMod
   , getNatMod
+  , reduceMod
   , invertMod
   , powMod
   , (^%)
@@ -30,6 +33,7 @@ module Math.NumberTheory.Moduli.Class
   , MultMod
   , multElement
   , isMultElement
+  , reduceMult
   , invertGroup
   -- * Unknown modulo
   , SomeMod(..)
@@ -217,6 +221,13 @@ invertGroup :: KnownNat m => MultMod m -> MultMod m
 invertGroup (MultMod a) = case invertMod a of
                             Just b -> MultMod b
                             Nothing -> error "Math.NumberTheory.Moduli.invertGroup: failed to invert element"
+
+reduceMod :: forall a b. (KnownNat a, KnownNat b) => Mod (a*b) -> (Mod a, Mod b)
+reduceMod (Mod n) = (fromIntegral n, fromIntegral n)
+
+reduceMult :: forall a b. (KnownNat a, KnownNat b) => MultMod (a*b) -> (MultMod a, MultMod b)
+reduceMult (MultMod n) = (MultMod a, MultMod b)
+  where (a,b) = reduceMod n
 
 -- | This type represents residues with unknown modulo and rational numbers.
 -- One can freely combine them in arithmetic expressions, but each operation

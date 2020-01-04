@@ -87,6 +87,7 @@ import Math.NumberTheory.Utils.FromIntegral                (wordToInt)
 -- are \(\phi(n)\) characters modulo \(n\), where \(\phi\) refers to Euler's `totient` function.
 -- This gives rise to `Enum` and `Bounded` instances.
 newtype DirichletCharacter (n :: Nat) = Generated [DirichletFactor]
+  deriving Show
 
 -- | The group (Z/nZ)^* decomposes to a product (Z/2^k0 Z)^* x (Z/p1^k1 Z)^* x ... x (Z/pi^ki Z)^*
 -- where n = 2^k0 p1^k1 ... pi^ki, and the pj are odd primes, k0 possibly 0. Thus, a group
@@ -108,9 +109,12 @@ data DirichletFactor = OddPrime { _getPrime :: Prime Natural
                                 }
                      | TwoPower { _getPower2 :: Int -- this ought to be Word, but many applications
                                                     -- needed to use wordToInt, so Int is cleaner
+                                                    -- Required to be >= 2
                                 , _getFirstValue :: RootOfUnity
                                 , _getSecondValue :: RootOfUnity
                                 }
+                      | Two
+                                deriving Show
 
 instance Eq (DirichletCharacter n) where
   Generated a == Generated b = a == b
@@ -118,6 +122,7 @@ instance Eq (DirichletCharacter n) where
 instance Eq DirichletFactor where
   TwoPower _ x1 x2 == TwoPower _ y1 y2 = x1 == y1 && x2 == y2
   OddPrime _ _ _ x == OddPrime _ _ _ y = x == y
+  Two              == Two = True
   _ == _ = False
 
 -- | A representation of <https://en.wikipedia.org/wiki/Root_of_unity roots of unity>: complex
@@ -130,8 +135,8 @@ newtype RootOfUnity =
 
 instance Show RootOfUnity where
   show (RootOfUnity q)
-    | n == 0    = "e^0"
-    | d == 1    = "e^(πi)"
+    | n == 0    = "1"
+    | d == 1    = "-1"
     | n == 1    = "e^(πi/" ++ show d ++ ")"
     | otherwise = "e^(" ++ show n ++ "πi/" ++ show d ++ ")"
     where n = numerator (2*q)
@@ -197,6 +202,7 @@ evalFactor m =
                                                       then bit k - m'
                                                       else m'
                                              kBits = bit k - 1
+    Two -> mempty
 
 -- | A character can evaluate to a root of unity or zero: represented by @Nothing@.
 generalEval :: KnownNat n => DirichletCharacter n -> Mod n -> OrZero RootOfUnity
@@ -237,6 +243,7 @@ stimesChar s (Generated xs) = Generated (map mult xs)
   where mult :: DirichletFactor -> DirichletFactor
         mult (OddPrime p k g n) = OddPrime p k g (s `stimes` n)
         mult (TwoPower k a b) = TwoPower k (s `stimes` a) (s `stimes` b)
+        mult Two = Two
 
 -- | We define `succ` and `pred` with more efficient implementations than
 -- @`toEnum` . (+1) . `fromEnum`@.
@@ -265,6 +272,7 @@ characterNumber (Generated y) = foldl' go 0 y
         go x (TwoPower k a b)   = x' * 2 + numerator (fromRootOfUnity a * (2 % 1))
           where m = bit (k-2) :: Integer
                 x' = x `shiftL` (k-2) + numerator (fromRootOfUnity b * fromIntegral m)
+        go x Two = x
 
 -- | Give the dirichlet character from its number.
 -- Inverse of `characterNumber`.
@@ -300,20 +308,22 @@ data Template = OddTemplate { _getPrime'     :: Prime Natural
                             , _getGenerator' :: !Natural
                             , _getModulus'   :: !Natural
                             }
-              | TwoTemplate { _getPower2'    :: Int
-                            , _getModulus'   :: !Natural
-                            } -- the modulus is derivable from the other values, but calculation
+              | TwoPTemplate { _getPower2'    :: Int
+                             , _getModulus'   :: !Natural
+                             } -- the modulus is derivable from the other values, but calculation
                               -- may be expensive, so we pre-calculate it
                               -- morally getModulus should be a prefactored but seems to be
                               -- pointless here
+              | TwoTemplate
 
 templateFromCharacter :: DirichletCharacter n -> (Product Natural, [Template])
 templateFromCharacter (Generated t) = traverse go t
   where go (OddPrime p k g _) = (Product m, OddTemplate p k g m)
           where p' = unPrime p
                 m = p'^(k-1)*(p'-1)
-        go (TwoPower k _ _) = (Product (2*m), TwoTemplate k m)
+        go (TwoPower k _ _) = (Product (2*m), TwoPTemplate k m)
           where m = bit (k-2)
+        go Two = (Product 1, TwoTemplate)
 
 -- TODO (idea): Template is effectively a CyclicFactor of a generalised CyclicGroup...
 -- see issue #154
@@ -321,8 +331,8 @@ templateFromCharacter (Generated t) = traverse go t
 mkTemplate :: Natural -> (Product Natural, [Template])
 mkTemplate = go . factorise
   where go :: [(Prime Natural, Word)] -> (Product Natural, [Template])
-        go ((unPrime -> 2, 1):xs) = traverse odds xs
-        go ((unPrime -> 2, wordToInt -> k):xs) = (Product (2*m), [TwoTemplate k m]) <> traverse odds xs
+        go ((unPrime -> 2, 1):xs) = (Product 1, [TwoTemplate]) <> traverse odds xs
+        go ((unPrime -> 2, wordToInt -> k):xs) = (Product (2*m), [TwoPTemplate k m]) <> traverse odds xs
           where m = bit (k-2)
         go xs = traverse odds xs
         odds :: (Prime Natural, Word) -> (Product Natural, Template)
@@ -336,10 +346,11 @@ unroll t m = snd (mapAccumL func m t)
   where func :: Natural -> Template -> (Natural, DirichletFactor)
         func a (OddTemplate p k g n) = (a1, OddPrime p k g (toRootOfUnity $ a2 % n))
           where (a1,a2) = quotRem a n
-        func a (TwoTemplate k n) = (b1, TwoPower k (toRootOfUnity $ a2 % 2) (toRootOfUnity $ b2 % n))
+        func a (TwoPTemplate k n) = (b1, TwoPower k (toRootOfUnity $ a2 % 2) (toRootOfUnity $ b2 % n))
           where (a1,a2) = quotRem a 2
                 (b1,b2) = quotRem a1 n
                 -- TODO: consider tidying
+        func a TwoTemplate = (a, Two)
 
 -- | Test if a given Dirichlet character is prinicpal for its modulus: a principal character mod
 -- \(n\) is 1 for \(a\) coprime to \(n\), and 0 otherwise.
@@ -358,34 +369,37 @@ isPrincipal chi = characterNumber chi == 0
 --
 induced :: forall n d. (KnownNat d, KnownNat n) => DirichletCharacter d -> Maybe (DirichletCharacter n)
 induced (Generated start) = if n `rem` d == 0
-                            then Just (Generated (combine n' start))
+                            then Just (Generated (combine (snd $ mkTemplate n) start))
                             else Nothing
   where n = natVal (Proxy :: Proxy n)
         d = natVal (Proxy :: Proxy d)
-        n' = factorise n
-        combine :: [(Prime Natural, Word)] -> [DirichletFactor] -> [DirichletFactor]
+        combine :: [Template] -> [DirichletFactor] -> [DirichletFactor]
         combine [] _ = []
-        combine t [] = plain t
-        combine ((p1,k1):xs) (y:ys)
+        combine ts [] = map newFactor ts
+        combine (t:xs) (y:ys) = undefined
           -- TODO: consider tidying
-          | unPrime p1 == 2, TwoPower _ a b <- y = TwoPower (wordToInt k1) a b: combine xs ys
-          | OddPrime p2 1 _g a <- y, p1 == p2 =
-                             OddPrime p2 k1 (generator p2 k1) a: combine xs ys
-            -- TODO: generator p2 k1 will be g or g + p2, and we already know g is a primroot mod p
-            -- so should be able to save work instead of running generator
-          | OddPrime p2 _ g a <- y, p1 == p2 =
-                             OddPrime p2 k1 g a: combine xs ys
-          | unPrime p1 == 2, k1 >= 2 = TwoPower (wordToInt k1) mempty mempty: combine xs (y:ys)
-          | unPrime p1 == 2 = combine xs (y:ys)
-          | otherwise = OddPrime p1 k1 (generator p1 k1) mempty: combine xs (y:ys)
-        plain :: [(Prime Natural, Word)] -> [DirichletFactor]
-        plain [] = []
-        plain f@((p,k):xs) = case (unPrime p, k) of
-                               (2,1) -> map rest xs
-                               (2,_) -> TwoPower (wordToInt k) mempty mempty: map rest xs
-                               _ -> map rest f
-        rest :: (Prime Natural, Word) -> DirichletFactor
-        rest (p,k) = OddPrime p k (generator p k) mempty
+          --  unPrime p1 == 2, TwoPower _ a b <- y = TwoPower (wordToInt k1) a b: combine xs ys
+          --  unPrime p1 == 2, k1 >= 2 = TwoPower (wordToInt k1) mempty mempty: combine xs (y:ys)
+          --  unPrime p1 == 2 = Two: combine xs (y:ys)
+          --  OddPrime p2 1 _g a <- y, p1 == p2 =
+          --                   OddPrime p2 k1 (generator p2 k1) a: combine xs ys
+          --  -- TODO: generator p2 k1 will be g or g + p2, and we already know g is a primroot mod p
+          --  -- so should be able to save work instead of running generator
+          --  OddPrime p2 _ g a <- y, p1 == p2 =
+          --                   OddPrime p2 k1 g a: combine xs ys
+          --  otherwise = OddPrime p1 k1 (generator p1 k1) mempty: combine xs (y:ys)
+        plain :: [Template] -> [DirichletFactor]
+        plain = undefined
+        -- plain [] = []
+        -- plain f@((p,k):xs) = case (unPrime p, k) of
+        --                        (2,1) -> Two: map rest xs
+        --                        (2,_) -> TwoPower (wordToInt k) mempty mempty: map rest xs
+        --                        _ -> map rest f
+        newFactor :: Template -> DirichletFactor
+        newFactor TwoTemplate = Two
+        newFactor (TwoPTemplate k _) = TwoPower k mempty mempty
+        newFactor (OddTemplate p k g _) = OddPrime p k g mempty
+        -- rest (p,k) = OddPrime p k (generator p k) mempty
 
 -- | The <https://en.wikipedia.org/wiki/Jacobi_symbol Jacobi symbol> gives a real Dirichlet
 -- character for odd moduli.
@@ -395,15 +409,16 @@ jacobiCharacter = if odd n
                      else Nothing
   where n = natVal (Proxy :: Proxy n)
         go :: Template -> DirichletFactor
-        go TwoTemplate{} = error "internal error in jacobiCharacter: please report this as a bug"
-          -- every factor of n should be odd
         go (OddTemplate p k g _) = OddPrime p k g $ toRootOfUnity (k % 2)
           -- jacobi symbol of a primitive root mod p over p is always -1
+        go _ = error "internal error in jacobiCharacter: please report this as a bug"
+          -- every factor of n should be odd
 
 -- | A Dirichlet character is real if it is real-valued.
 newtype RealCharacter n = RealChar { -- | Extract the character itself from a `RealCharacter`.
                                      getRealChar :: DirichletCharacter n
                                    }
+                                   deriving Show
 
 -- | Test if a given `DirichletCharacter` is real, and if so give a `RealCharacter`.
 isRealCharacter :: DirichletCharacter n -> Maybe (RealCharacter n)
@@ -411,6 +426,7 @@ isRealCharacter t@(Generated xs) = if all real xs then Just (RealChar t) else No
   where real :: DirichletFactor -> Bool
         real (OddPrime _ _ _ a) = a <> a == mempty
         real (TwoPower _ _ b) = b <> b == mempty
+        real Two = True
 
 -- TODO: it should be possible to calculate this without evaluate/generalEval
 -- and thus avoid using discrete log calculations: consider the order of m
@@ -428,15 +444,15 @@ toRealFunction (RealChar chi) m = case generalEval chi (fromIntegral m) of
 -- | Test if the internal DirichletCharacter structure is valid.
 validChar :: forall n. KnownNat n => DirichletCharacter n -> Bool
 validChar (Generated xs) = correctDecomposition && all correctPrimitiveRoot xs && all validValued xs
-  where correctDecomposition = removeTwo (factorise n) == map getPP xs
+  where correctDecomposition = factorise n == map getPP xs
         getPP (TwoPower k _ _) = (two, fromIntegral k)
         getPP (OddPrime p k _ _) = (p, k)
-        removeTwo ((unPrime -> 2,1):ys) = ys
-        removeTwo ys = ys
-        correctPrimitiveRoot TwoPower{} = True
+        getPP Two = (two,1)
         correctPrimitiveRoot (OddPrime p k g _) = g == generator p k
+        correctPrimitiveRoot _ = True
         validValued (TwoPower k a b) = a <> a == mempty && (k-2) `stimes` b == mempty
         validValued (OddPrime _ k _ a) = k `stimes` a == mempty
+        validValued Two = True
         n = natVal (Proxy :: Proxy n)
         two = head primes -- lazy way to get Prime 2
 
@@ -511,6 +527,7 @@ allEval (Generated xs) = V.generate (fromIntegral n) func
           where go :: (Int, Vector (OrZero RootOfUnity)) -> OrZero RootOfUnity
                 go (modulus,v) = v ! (m `mod` modulus)
         mkVector :: DirichletFactor -> (Int, Vector (OrZero RootOfUnity))
+        mkVector Two = (2, V.fromList [Zero, mempty])
         mkVector (OddPrime p k (fromIntegral -> g) a) = (modulus, w)
           where
             p' = unPrime p
